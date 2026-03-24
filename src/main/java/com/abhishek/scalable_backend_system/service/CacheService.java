@@ -17,8 +17,8 @@ public class CacheService {
     private final KafkaProducerService kafkaProducerService;
 
     public CacheService(StringRedisTemplate redisTemplate,
-                        UserRepository userRepository,
-                        KafkaProducerService kafkaProducerService) {
+            UserRepository userRepository,
+            KafkaProducerService kafkaProducerService) {
         this.redisTemplate = redisTemplate;
         this.userRepository = userRepository;
         this.kafkaProducerService = kafkaProducerService;
@@ -28,18 +28,21 @@ public class CacheService {
 
         String key = "user:" + id;
 
+        // ✅ Check cache
         String cached = redisTemplate.opsForValue().get(key);
 
         if (cached != null) {
             return "CACHE HIT → " + cached + " (id=" + id + ")";
         }
 
+        // ✅ Fetch from DB
         User user = userRepository.findById(id).orElse(null);
 
         if (user == null) {
             return "USER NOT FOUND";
         }
 
+        // ✅ Store in Redis
         redisTemplate.opsForValue()
                 .set(key, user.getName(), Duration.ofMinutes(10));
 
@@ -56,6 +59,7 @@ public class CacheService {
 
         User saved = userRepository.save(user);
 
+        // ✅ Kafka event
         kafkaProducerService.sendUserCreatedEvent(saved.getId());
 
         return saved;
