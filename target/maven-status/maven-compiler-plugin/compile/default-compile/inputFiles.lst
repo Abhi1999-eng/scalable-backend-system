@@ -1,11 +1,14 @@
 /Users/abhishekchaubey/scalable-backend-system/src/main/java/com/abhishek/scalable_backend_system/ScalableBackendSystemApplication.java
 /Users/abhishekchaubey/scalable-backend-system/src/main/java/com/abhishek/scalable_backend_system/config/RedisConfig.java
 /Users/abhishekchaubey/scalable-backend-system/src/main/java/com/abhishek/scalable_backend_system/controller/HealthController.java
+/Users/abhishekchaubey/scalable-backend-system/src/main/java/com/abhishek/scalable_backend_system/controller/JobController.java
+/Users/abhishekchaubey/scalable-backend-system/src/main/java/com/abhishek/scalable_backend_system/controller/JobStatusController.java
 /Users/abhishekchaubey/scalable-backend-system/src/main/java/com/abhishek/scalable_backend_system/controller/UserController.java
 /Users/abhishekchaubey/scalable-backend-system/src/main/java/com/abhishek/scalable_backend_system/model/User.java
 /Users/abhishekchaubey/scalable-backend-system/src/main/java/com/abhishek/scalable_backend_system/model/UserEvent.java
 /Users/abhishekchaubey/scalable-backend-system/src/main/java/com/abhishek/scalable_backend_system/repository/UserRepository.java
 /Users/abhishekchaubey/scalable-backend-system/src/main/java/com/abhishek/scalable_backend_system/service/CacheService.java
+/Users/abhishekchaubey/scalable-backend-system/src/main/java/com/abhishek/scalable_backend_system/service/JobConsumer.java
 /Users/abhishekchaubey/scalable-backend-system/src/main/java/com/abhishek/scalable_backend_system/service/KafkaConsumerService.java
 /Users/abhishekchaubey/scalable-backend-system/src/main/java/com/abhishek/scalable_backend_system/service/KafkaProducerService.java
 /Users/abhishekchaubey/scalable-backend-system/src/main/java/com/abhishek/scalable_backend_system/service/RateLimiterService.java

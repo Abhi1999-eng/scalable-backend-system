@@ -14,7 +14,7 @@ public class KafkaProducerService {
     private static final String TOPIC = "user-events";
 
     public KafkaProducerService(KafkaTemplate<String, String> kafkaTemplate,
-                                ObjectMapper objectMapper) {
+            ObjectMapper objectMapper) {
         this.kafkaTemplate = kafkaTemplate;
         this.objectMapper = objectMapper;
     }
@@ -26,8 +26,7 @@ public class KafkaProducerService {
             UserEvent event = new UserEvent(
                     "USER_CREATED",
                     userId,
-                    System.currentTimeMillis()
-            );
+                    System.currentTimeMillis());
 
             String json = objectMapper.writeValueAsString(event);
 
@@ -47,8 +46,7 @@ public class KafkaProducerService {
             UserEvent event = new UserEvent(
                     "USER_DELETED",
                     userId,
-                    System.currentTimeMillis()
-            );
+                    System.currentTimeMillis());
 
             String json = objectMapper.writeValueAsString(event);
 
@@ -59,5 +57,10 @@ public class KafkaProducerService {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public void sendJobEvent(int jobId, int step) {
+        String message = jobId + ":" + step;
+        kafkaTemplate.send("job-topic", message);
     }
 }
