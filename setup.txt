@@ -1,0 +1,46 @@
+# Install Homebrew (if not installed)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Java 21
+brew install openjdk@21
+
+# Maven
+brew install maven
+
+# Git
+brew install git
+
+# Install Postgres
+brew install postgresql
+
+# Start Postgres
+brew services start postgresql
+
+# Open psql
+psql postgres
+
+# Inside psql:
+CREATE DATABASE scalable_system;
+\q
+
+# Install Redis
+brew install redis
+
+# Start Redis
+brew services start redis
+
+# Install Kafka
+brew install kafka
+brew install zookeeper
+
+# Start Zookeeper
+brew services start zookeeper
+
+# Start Kafka
+brew services start kafka
+
+kafka-topics --create \
+--topic job-topic \
+--bootstrap-server localhost:9092 \
+--partitions 1 \
+--replication-factor 1
