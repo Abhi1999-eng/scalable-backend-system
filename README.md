@@ -170,6 +170,13 @@ For a lightweight demo deployment, set:
 APP_KAFKA_ENABLED=false
 ```
 
+If you use Render, the repo now includes [render.yaml](/Users/abhishekchaubey/scalable-backend-system/render.yaml) with:
+
+- one Docker-based backend web service
+- one free Postgres instance
+- one free Key Value instance
+- Kafka disabled by default for the hosted demo
+
 and provide these backend environment variables:
 
 ```bash
@@ -187,3 +194,11 @@ BACKEND_URL=https://your-backend-url
 ```
 
 This disables Kafka-only features for the hosted demo while keeping dataset upload, analytics, auth, and saved charts working.
+
+### Quick deploy sequence
+
+1. Deploy the backend from this repo on Render using the included `render.yaml`.
+2. Wait for Render to provision Postgres and Key Value and finish the backend deploy.
+3. Deploy the `frontend` directory on Vercel.
+4. Set `BACKEND_URL` in Vercel to your Render backend URL.
+5. Open the frontend and create your first account through the auth screen.

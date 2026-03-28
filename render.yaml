@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: scalable-backend-system
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    envVars:
+      - key: APP_KAFKA_ENABLED
+        value: "false"
+      - key: SPRING_JPA_SHOW_SQL
+        value: "false"
+      - key: APP_AUTH_JWT_SECRET
+        generateValue: true
+      - key: SPRING_DATASOURCE_URL
+        fromDatabase:
+          name: scalable-backend-db
+          property: connectionString
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase:
+          name: scalable-backend-db
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: scalable-backend-db
+          property: password
+      - key: SPRING_DATA_REDIS_URL
+        fromService:
+          type: keyvalue
+          name: scalable-backend-cache
+          property: connectionString
+
+databases:
+  - name: scalable-backend-db
+    plan: free
+
+keyvalue:
+  - name: scalable-backend-cache
+    plan: free
