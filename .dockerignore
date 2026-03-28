@@ -1,0 +1,8 @@
+.git
+.gitignore
+target
+frontend
+uploads
+dataset-uploads
+docs
+.DS_Store
