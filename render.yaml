@@ -29,11 +29,10 @@ services:
           type: keyvalue
           name: scalable-backend-cache
           property: connectionString
+  - type: keyvalue
+    name: scalable-backend-cache
+    plan: free
 
 databases:
   - name: scalable-backend-db
-    plan: free
-
-keyvalue:
-  - name: scalable-backend-cache
     plan: free
