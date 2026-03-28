@@ -3,11 +3,15 @@ package com.abhishek.scalable_backend_system.controller;
 import com.abhishek.scalable_backend_system.model.User;
 import com.abhishek.scalable_backend_system.service.CacheService;
 import com.abhishek.scalable_backend_system.service.RateLimiterService;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.validation.annotation.Validated;
 
+@Validated
 @RestController
 @RequestMapping("/users")
 public class UserController {
@@ -25,7 +29,7 @@ public class UserController {
      * Create user
      */
     @PostMapping
-    public ResponseEntity<?> createUser(@RequestParam String name,
+    public ResponseEntity<?> createUser(@RequestParam @NotBlank(message = "name is required") String name,
                                         @RequestHeader(value = "client-id", defaultValue = "anonymous") String clientId) {
 
         boolean allowed = rateLimiterService.allowRequest(clientId);
@@ -44,7 +48,7 @@ public class UserController {
      * Fetch user
      */
     @GetMapping("/{id}")
-    public ResponseEntity<?> getUser(@PathVariable Long id,
+    public ResponseEntity<?> getUser(@PathVariable @Min(1) Long id,
                                      @RequestHeader(value = "client-id", defaultValue = "anonymous") String clientId) {
 
         boolean allowed = rateLimiterService.allowRequest(clientId);
@@ -63,7 +67,7 @@ public class UserController {
      * Delete user
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteUser(@PathVariable Long id,
+    public ResponseEntity<?> deleteUser(@PathVariable @Min(1) Long id,
                                         @RequestHeader(value = "client-id", defaultValue = "anonymous") String clientId) {
 
         boolean allowed = rateLimiterService.allowRequest(clientId);

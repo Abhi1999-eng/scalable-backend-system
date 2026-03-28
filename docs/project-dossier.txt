@@ -1,0 +1,932 @@
+
+
+Scalable Backend System - Project Dossier
+
+Scalable Backend System - Complete Project Dossier
+
+This document is a comprehensive, codebase-driven description of the current project as implemented in the
+repository /Users/abhishekchaubey/scalable-backend-system. It covers product scope,
+technical architecture, backend and frontend modules, storage design, execution flows, APIs, scaling approach,
+testing coverage, and operational notes.
+
+Project Type
+Spring Boot + Next.js data ingestion and analytics platform
+
+Document Date
+March 28, 2026
+
+Primary Focus
+Bulk file ingestion, CSV analytics, chart generation, caching, jobs, and event-driven backend patterns
+
+1. Executive Summary
+
+The project has evolved from a backend systems learning project into a practical ingestion-and-analytics platform.
+It now combines classic distributed backend components with a data-focused user experience:
+
+Spring Boot REST APIs for operational and analytics workflows
+
+PostgreSQL for durable metadata and dataset row storage
+
+Redis for caching, rate limiting, and job progress state
+
+Kafka for user and job event pipelines
+
+Asynchronous executors for ingestion workloads
+
+A Next.js frontend that uploads datasets, explores CSVs, previews tables, and builds charts
+
+There are two major ingestion domains in the codebase:
+
+Bulk file ingestion: optimized for large batches of files or ZIP archives containing many files.
+
+Dataset analytics: optimized for CSV uploads, inferred profiling, row browsing, and chart-ready aggregations.
+
+2. Goals and Problem Statement
+
+The project solves several related problems:
+
+Accept large upload workloads without blocking HTTP request threads.
+
+Persist uploaded files and structured dataset content safely.
+
+Expose progress tracking for long-running work.
+
+Support common operational backend patterns such as caching, rate limiting, and event-driven invalidation.
+
+Allow a user to upload multiple CSVs or ZIPs of CSVs, inspect each CSV independently, and create charts from it.
+
+Provide a frontend workflow that makes analytical exploration approachable instead of overly technical.
+
+3. Technology Stack
+
+Layer
+Technology
+Purpose
+
+Backend runtime
+Java 21, Spring Boot 3.3.2
+REST APIs, dependency injection, persistence, Redis, Kafka integration
+
+Persistence
+PostgreSQL
+User storage, file metadata, dataset metadata, column profiles, stored rows
+
+Cache / counters
+Redis
+User caching, rate limiting, job status, ingestion status support
+
+Event streaming
+Kafka
+User lifecycle events and background job events
+
+Dataset parsing
+Apache Commons CSV
+CSV ingestion and profiling
+
+Frontend
+Next.js 16, React 19, TypeScript
+Batch upload UI, dataset explorer, chart builder
+
+Chart rendering
+Recharts
+Bar, line, pie, histogram, scatter, box, pictograph, and area charts
+
+Build tools
+Maven, npm
+Backend and frontend builds
+
+4. Repository Layout
+
+Path
+Purpose
+
+src/main/java/com/abhishek/scalable_backend_system
+Spring Boot application code
+
+src/main/resources/application.properties
+Environment and runtime configuration
+
+src/test/java/com/abhishek/scalable_backend_system/service
+Service-layer tests for file and dataset ingestion
+
+frontend
+Next.js frontend application
+
+uploads
+Stored bulk-ingested file data
+
+dataset-uploads
+Stored raw dataset files for CSV analytics
+
+docs/project-dossier.html
+This generated architecture and project report
+
+5. Top-Level System Architecture
+
+System shape: the application is a multi-workload platform with a shared operational backend and
+two specialized ingestion paths: one for generic file throughput and one for structured CSV analytics.
+
+5.1 Main architectural components
+
+Presentation tier: Next.js dashboard that handles uploads, dataset selection, previewing, and chart interactions.
+
+API tier: Spring Boot controllers exposing REST endpoints for health, users, jobs, bulk file ingestion, and datasets.
+
+Service tier: domain logic for caching, rate limiting, Kafka publishing/consuming, file ingestion, and dataset analytics.
+
+Persistence tier: PostgreSQL tables for durable domain data plus filesystem storage for raw uploaded files.
+
+Operational state tier: Redis for request limiting, cache entries, and transient job progress counters.
+
+Event tier: Kafka topics for user events and job-step messages.
+
+Async execution tier: dedicated thread pools for ingestion orchestration and ingestion workers.
+
+5.2 Architecture by responsibility
+
+Concern
+Implementation
+
+User CRUD with cache
+UserController + CacheService + UserRepository + Redis
+
+Rate limiting
+RateLimiterService using Redis counters and expirations
+
+User event invalidation
+KafkaProducerService and KafkaConsumerService
+
+Background jobs
+JobController, JobStatusController, Redis progress keys, Kafka job topic
+
+Bulk file ingestion
+FileIngestionController, FileIngestionService, StoredFileRecord, JDBC batching
+
+Dataset ingestion and analytics
+DatasetController, DatasetService, dataset tables, chart APIs
+
+Frontend proxying
+frontend/app/api/[...path]/route.ts
+
+6. Backend Application Design
+
+6.1 Bootstrapping and configuration
+
+The Spring Boot application entry point is ScalableBackendSystemApplication.java. Core
+runtime configuration is held in application.properties.
+
+Property
+Current Value
+Meaning
+
+server.port
+8082
+Backend listens on port 8082
+
+spring.datasource.url
+jdbc:postgresql://localhost:5432/scalable_system
+Primary relational database
+
+spring.jpa.hibernate.ddl-auto
+update
+Schema auto-update at runtime
+
+spring.jpa.properties.hibernate.jdbc.batch_size
+500
+JPA insert batching for supported writes
+
+spring.data.redis.host
+localhost
+Redis connection target
+
+spring.kafka.bootstrap-servers
+localhost:9092
+Kafka connection target
+
+spring.servlet.multipart.max-file-size
+5GB
+Single multipart file limit
+
+spring.servlet.multipart.max-request-size
+5GB
+Total multipart request limit
+
+app.ingestion.storage-root
+uploads
+Stored file ingestion root
+
+app.datasets.storage-root
+dataset-uploads
+Raw CSV dataset storage root
+
+6.2 Async execution model
+
+AsyncConfig.java defines two executors:
+
+ingestionTaskExecutor: core pool 4, max pool 8, queue 100. Used for orchestration of high-level ingestion tasks.
+
+ingestionWorkerExecutor: core pool 8, max pool 16, queue 500. Used for parallel work over file chunks.
+
+This separation is important. It prevents a single giant upload from monopolizing the same pool used to schedule
+new ingestion work.
+
+7. Backend Modules and Responsibilities
+
+7.1 Health module
+
+HealthController provides a simple liveness endpoint. This supports quick local
+verification and frontend "backend online" indicators.
+
+7.2 User, cache, and rate-limiting module
+
+Relevant classes:
+
+UserController
+
+CacheService
+
+RateLimiterService
+
+UserRepository
+
+User
+
+KafkaProducerService and KafkaConsumerService
+
+User API behavior
+
+POST /users?name=... creates a user if the caller is under the rate limit.
+
+GET /users/{id} tries Redis first, then PostgreSQL, then caches the result for 10 minutes.
+
+DELETE /users/{id} deletes a user and publishes a Kafka event.
+
+GET /users lists all users.
+
+Rate limiting logic
+
+The rate limiter is simple and Redis-backed. For a given client-id header:
+
+Redis key: rate_limit:<clientId>
+
+Window: 200 seconds
+
+Limit: 15 requests
+
+If the request count exceeds the threshold, the controller returns HTTP 429.
+
+Caching logic
+
+Redis key: user:<id>
+
+TTL: 10 minutes
+
+Cache is invalidated on delete by Kafka consumer logic
+
+Event-driven invalidation
+
+When a user is created or deleted, a JSON event is published to Kafka topic user-events.
+The consumer listens to that topic and clears the Redis user cache on delete events.
+
+7.3 Background jobs module
+
+Relevant classes:
+
+JobController
+
+JobStatusController
+
+KafkaProducerService
+
+JobConsumer
+
+The job subsystem demonstrates event-driven background progress tracking:
+
+POST /jobs/start creates a pseudo job ID and sets Redis keys for total and progress.
+
+It publishes 100 messages to Kafka topic job-topic.
+
+A job consumer processes messages and updates progress.
+
+GET /jobs/{jobId} reads Redis and returns progress totals.
+
+This part of the system is less feature-rich than the dataset subsystem, but it demonstrates asynchronous
+processing and distributed state tracking clearly.
+
+7.4 Bulk file ingestion module
+
+Relevant classes:
+
+FileIngestionController
+
+FileIngestionService
+
+IngestionStatusService
+
+StoredFileRecord
+
+FileRecordRepository and FileRecordJdbcRepository
+
+Purpose
+
+This subsystem is optimized for volume, not structured analytics. Its job is to receive a large number of files,
+store them efficiently, compute metadata, and expose processing status.
+
+Core design choices
+
+Requests return quickly with an uploadId rather than processing everything synchronously.
+
+Multipart uploads are staged before async processing so servlet temp-file cleanup cannot break background work.
+
+ZIP ingestion streams entries instead of exploding memory usage.
+
+File metadata writes are batched.
+
+Files are copied with a 64 KB buffer to avoid loading entire contents into memory.
+
+Important implementation constants
+
+Constant
+Value
+Effect
+
+DB_BATCH_SIZE
+500
+Controls how many file metadata records are batch inserted at once
+
+FILE_CHUNK_SIZE
+250
+Controls multipart work chunking across async worker tasks
+
+BUFFER_SIZE
+64 KB
+Controls stream buffer size during file copy and digest calculation
+
+Metadata captured per stored file
+
+Upload ID
+
+Original filename
+
+Stored filename
+
+Storage path
+
+Content type
+
+Size in bytes
+
+Line count
+
+SHA-256 checksum
+
+Status
+
+Creation timestamp
+
+Bulk file ingestion flow
+
+Client submits multipart files or a ZIP archive.
+
+Service creates an uploadId and an initial status object.
+
+Input files are staged under a hidden staging directory.
+
+Async task creates final upload directory under uploads/<uploadId>.
+
+Files or ZIP entries are streamed to disk.
+
+Checksums and line counts are computed during the copy.
+
+Metadata records are batch inserted into PostgreSQL.
+
+Progress and byte counters are updated as files complete.
+
+Staging content is deleted after processing.
+
+7.5 Dataset analytics module
+
+Relevant classes:
+
+DatasetController
+
+DatasetService
+
+Dataset
+
+DatasetColumnProfile
+
+DatasetRow
+
+DatasetChartRequest and DatasetChartResponse
+
+DatasetRepository, DatasetColumnProfileRepository, DatasetRowRepository
+
+Purpose
+
+This subsystem turns uploaded CSVs into first-class analytical datasets. It stores raw files, profiles columns,
+stores rows, and exposes chart-ready transformations for frontend visualization.
+
+Key product capabilities
+
+Upload one or many CSVs.
+
+Upload ZIP archives that contain multiple CSVs.
+
+Group all CSVs discovered in one upload under a shared batchId.
+
+Track each CSV independently with its own datasetId.
+
+Infer column type and profile statistics.
+
+Store rows for preview and analytical aggregation.
+
+Generate bar, line, pie, histogram, scatter, box, pictograph, and area chart payloads.
+
+Dataset ingestion flow
+
+Client sends CSV files and/or ZIP archives to POST /datasets/upload.
+
+Service creates a shared batchId.
+
+Each CSV becomes a separate dataset record with its own datasetId.
+
+Raw dataset file is stored under dataset-uploads/<datasetId>/<filename>.
+
+Dataset status is saved as QUEUED.
+
+Async executor starts ingestDataset(datasetId).
+
+CSV headers are read and rows are streamed through Apache Commons CSV.
+
+Each row is converted to JSON and persisted into dataset_rows.
+
+Per-column accumulators compute distinct counts, null counts, and min/max snapshots.
+
+Column profiles are saved into dataset_column_profiles.
+
+Dataset status becomes READY or FAILED.
+
+Type inference strategy
+
+Inference is rule-based, not AI-based. The service observes values column by column and classifies data into
+types like number, text, boolean, date, and datetime using deterministic parsing checks.
+
+Chart generation strategy
+
+Chart APIs do not return image files. They return chart-ready data structures. The frontend is responsible only
+for rendering. The backend decides how rows are grouped, aggregated, and reduced.
+
+Chart Type
+Backend Strategy
+
+Bar / Pie / Pictograph
+Category aggregation by xColumn, with count or sum
+
+Line / Area
+Ordered aggregation across the requested X dimension
+
+Histogram
+Distribution/bucketization over a numeric column
+
+Scatter
+X/Y numeric points extracted from row data
+
+Box Plot
+Min/Q1/median/Q3/max statistics over a numeric distribution
+
+Why rows are stored as JSON
+
+The current system persists each dataset row as JSON text in PostgreSQL. This is a pragmatic choice:
+
+the schema of uploaded CSVs is not fixed ahead of time
+
+one storage model can support arbitrary uploaded datasets
+
+the backend can reconstruct maps for row preview and aggregation logic
+
+This is a flexible MVP design. For much larger analytical workloads, a dedicated analytical engine such as
+DuckDB or ClickHouse would likely be a better next step.
+
+8. Domain Models and Storage Schema
+
+8.1 Main persisted entities
+
+Entity
+Purpose
+
+User
+Stores user records for the CRUD/cache/event demo subsystem
+
+StoredFileRecord
+Stores metadata for generic file-ingestion uploads
+
+Dataset
+Stores per-CSV dataset metadata, lifecycle state, and storage location
+
+DatasetColumnProfile
+Stores inferred profiling and type metadata per dataset column
+
+DatasetRow
+Stores dataset row payloads as JSON plus row numbers
+
+8.2 Datasets table fields
+
+Based on the current schema, the datasets table contains:
+
+id
+
+batch_id
+
+column_count
+
+content_type
+
+created_at
+
+dataset_id
+
+dataset_type
+
+error_message
+
+file_size_bytes
+
+finished_at
+
+original_filename
+
+row_count
+
+started_at
+
+status
+
+storage_path
+
+stored_filename
+
+8.3 Filesystem storage layout
+
+Directory
+Role
+
+uploads/<uploadId>/...
+Final stored content for generic file ingestion
+
+uploads/.staging/<uploadId>/...
+Temporary staged multipart or ZIP content for safe async processing
+
+dataset-uploads/<datasetId>/<filename>
+Raw persisted dataset file for a specific CSV dataset
+
+9. API Surface
+
+9.1 Health
+
+MethodPathPurpose
+
+GET/healthBasic liveness check
+
+9.2 Users
+
+MethodPathPurpose
+
+POST/users?name=...Create user with rate limiting
+
+GET/users/{id}Fetch user with Redis cache lookup
+
+GET/usersList all users
+
+DELETE/users/{id}Delete user and publish Kafka event
+
+9.3 Jobs
+
+MethodPathPurpose
+
+POST/jobs/startStart synthetic background job
+
+GET/jobs/{jobId}Read progress from Redis
+
+9.4 Bulk file ingestion
+
+MethodPathPurpose
+
+POST/ingestion/files/bulkSubmit many multipart files
+
+POST/ingestion/files/zipSubmit ZIP archive of files
+
+GET/ingestion/files/{uploadId}Read upload status
+
+GET/ingestion/files/{uploadId}/recordsRead stored metadata rows for an upload
+
+9.5 Dataset analytics
+
+MethodPathPurpose
+
+POST/datasets/uploadSubmit CSV files and/or ZIP archives containing CSVs
+
+GET/datasets/batches/{batchId}Load all datasets created in one upload batch
+
+GET/datasets/{datasetId}/statusRead dataset lifecycle state
+
+GET/datasets/{datasetId}/schemaRead inferred schema only
+
+GET/datasets/{datasetId}/profileRead dataset metadata plus schema profile
+
+GET/datasets/{datasetId}/rows?limit=&offset=Read paged row previews
+
+POST/datasets/{datasetId}/chartsGenerate chart-ready data
+
+10. Frontend Architecture
+
+10.1 Purpose of the frontend
+
+The frontend turns the dataset subsystem into a usable exploration tool. It is not just a form layer. It manages
+batch upload workflows, dataset selection, row table preview, and interactive chart building.
+
+10.2 Frontend stack
+
+Next.js 16.2.1
+
+React 19
+
+TypeScript 5.8.3
+
+Recharts 3.8.1
+
+10.3 Frontend runtime structure
+
+File
+Purpose
+
+frontend/app/page.tsx
+Main dataset workspace UI
+
+frontend/app/globals.css
+Black-based visual system and responsive layout
+
+frontend/app/api/[...path]/route.ts
+Catch-all proxy route to backend
+
+frontend/.env.local
+Defines BACKEND_URL for proxying
+
+10.4 Proxy architecture
+
+Browser requests are sent to Next.js under /api/.... The catch-all route handler
+forwards those requests to the Spring backend using the configured BACKEND_URL. This
+avoids CORS complexity and lets the browser stay same-origin against port 3000.
+
+10.5 Frontend interaction model
+
+User uploads CSVs and ZIPs in a single batch.
+
+Frontend receives a batchId and dataset list.
+
+Frontend polls batch state until queued datasets finish processing.
+
+CSV rows are shown as expandable cards.
+
+Opening a CSV loads the row preview and enables chart generation for that dataset.
+
+Chart data is rendered client-side using Recharts.
+
+11. Detailed Data Flows
+
+11.1 User creation and cache lifecycle
+
+Client
+-> POST /users?name=...
+-> RateLimiterService checks Redis key rate_limit:<client-id>
+-> CacheService saves user in PostgreSQL
+-> KafkaProducerService publishes USER_CREATED event
+-> Response returns created user
+
+Later read:
+Client
+-> GET /users/{id}
+-> CacheService checks Redis user:<id>
+-> cache hit: return cached value
+-> cache miss: read PostgreSQL, write Redis with 10-minute TTL, return value
+
+Delete:
+Client
+-> DELETE /users/{id}
+-> CacheService deletes from PostgreSQL
+-> KafkaProducerService publishes USER_DELETED event
+-> KafkaConsumerService consumes event and invalidates Redis user:<id>
+
+11.2 Bulk file ingestion flow
+
+Client
+-> POST /ingestion/files/bulk or /ingestion/files/zip
+-> FileIngestionService creates uploadId and initial status
+-> multipart files or archive are staged under uploads/.staging/<uploadId>
+-> async task starts processing
+-> final files are streamed to uploads/<uploadId>
+-> checksum, line count, and size are computed
+-> metadata is batch inserted into PostgreSQL
+-> status is updated as processed bytes and files increase
+-> final status becomes COMPLETED or FAILED
+
+11.3 Dataset analytics flow
+
+User uploads CSVs or ZIPs
+-> POST /datasets/upload
+-> DatasetService creates batchId
+-> each CSV becomes a Dataset row with its own datasetId
+-> raw CSV is saved under dataset-uploads/<datasetId>
+-> async ingestion begins
+
+Ingestion
+-> CSV headers parsed
+-> rows converted to ordered maps
+-> rows persisted as JSON in dataset_rows
+-> column accumulators infer types and profile metrics
+-> profiles written to dataset_column_profiles
+-> dataset row_count / column_count updated
+-> dataset status becomes READY
+
+Exploration
+-> frontend loads batch
+-> user expands one CSV row
+-> frontend requests profile and rows
+-> user chooses chart type and columns
+-> frontend POSTs chart request
+-> backend returns labels/values or points/statistics
+-> Recharts renders visualization
+
+12. Testing and Verification
+
+12.1 Current automated tests
+
+The codebase includes service tests for the two most important data pipelines.
+
+Test File
+Coverage Focus
+
+DatasetServiceTest.java
+CSV ingestion, schema inference, row persistence behavior, count charts, sum charts, invalid direct upload rejection
+
+FileIngestionServiceTest.java
+Multipart storage, ZIP storage, staging cleanup, empty upload rejection, partial failure handling, ZIP-slip protection, chunked processing
+
+12.2 What is tested well
+
+Core ingestion behavior for both file and dataset services
+
+Validation failures for empty uploads and wrong dataset file types
+
+ZIP security behavior against path traversal
+
+Chart aggregation correctness for representative cases
+
+Large multipart chunking behavior
+
+12.3 Remaining testing gaps
+
+No full end-to-end integration tests against real PostgreSQL, Redis, and Kafka
+
+No browser automation or frontend interaction tests
+
+No formal performance benchmark suite for very large CSV analytics datasets
+
+No migration tests because schema migration tooling is not yet introduced
+
+13. Operational Characteristics
+
+13.1 Performance characteristics
+
+File ingestion is optimized for throughput by using async executors, file chunking, and JDBC batching.
+
+Dataset ingestion is optimized for flexibility and deterministic profiling, not warehouse-scale OLAP performance.
+
+ZIP uploads are the preferred high-volume path for file ingestion because they minimize HTTP part overhead.
+
+Dataset row retrieval is capped and paged to keep preview endpoints manageable.
+
+13.2 Security and safety controls present
+
+ZIP path sanitization prevents path traversal during file ingestion.
+
+Staging avoids temp-file lifetime bugs during async processing.
+
+Rate limiting protects user APIs from simple burst abuse.
+
+Chart request validation returns explicit 400 errors for malformed requests.
+
+13.3 Notable technical debt and limitations
+
+Schema evolution relies on Hibernate ddl-auto=update instead of Flyway or Liquibase.
+
+Logging is still basic and includes printStackTrace() style behavior in Kafka services.
+
+Dataset storage uses PostgreSQL row JSON rather than a purpose-built analytical engine.
+
+Authentication and authorization are not implemented.
+
+Object storage such as S3 or MinIO is not yet used; raw files are local-disk based.
+
+14. Scalability Assessment
+
+14.1 What scales reasonably well today
+
+Bulk file receipt and metadata persistence for large batches
+
+Async batch submission and progress tracking
+
+Multi-dataset upload batches containing multiple CSVs or ZIP archives
+
+Low-to-moderate scale CSV analytics and charting
+
+14.2 Where scaling pressure will appear first
+
+Large analytical queries over many stored JSON rows in PostgreSQL
+
+Lack of schema migrations in multi-environment deployments
+
+Local filesystem storage in distributed or cloud-native deployments
+
+Frontend rendering if dataset previews become too wide or too large without virtualization
+
+14.3 Best next evolution path
+
+Add Flyway migrations for repeatable schema management.
+
+Replace local-disk raw storage with MinIO or S3 for portability.
+
+Introduce a dedicated analytical layer such as DuckDB or ClickHouse for larger chart/query workloads.
+
+Add authentication, dataset ownership, and saved dashboards.
+
+Add load testing and formal observability.
+
+15. Local Development and Runbook
+
+15.1 Required services
+
+PostgreSQL on port 5432
+
+Redis on port 6379
+
+Kafka on port 9092
+
+15.2 Start backend
+
+./mvnw spring-boot:run
+
+15.3 Start frontend
+
+cd frontend
+npm install
+cp .env.example .env.local
+npm run dev
+
+15.4 Frontend environment
+
+BACKEND_URL=http://localhost:8082
+
+15.5 Useful verification commands
+
+curl http://localhost:8082/health
+curl http://localhost:8082/datasets/batches/<batchId>
+curl http://localhost:8082/ingestion/files/<uploadId>
+psql -h localhost -U abhishekchaubey -d scalable_system -c "select * from datasets order by created_at desc limit 20;"
+redis-cli GET job:<jobId>:progress
+
+16. Project Strengths
+
+Good separation between generic file ingestion and structured dataset analytics
+
+Asynchronous design prevents slow ingestion from blocking request threads
+
+Real use of Redis and Kafka instead of placeholder integrations
+
+Frontend is now task-oriented around CSV batches, previews, and charts
+
+Security-conscious ZIP path handling
+
+Tests cover important service-layer behavior for the most valuable features
+
+17. Final Assessment
+
+This project is no longer just a backend demo. It is the foundation of a real ingestion-and-exploration platform.
+The system demonstrates:
+
+distributed backend fundamentals
+
+high-volume file intake patterns
+
+structured dataset ingestion and profiling
+
+chart-ready analytical APIs
+
+a tailored frontend UX for dataset exploration
+
+The current architecture is strongest as a practical MVP or portfolio-grade systems project. With schema
+migrations, stronger logging, and a more specialized analytical engine, it can evolve into a much more production
+ready data platform.
+
+Generated from the current repository state on March 28, 2026.
+

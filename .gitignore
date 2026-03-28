@@ -26,3 +26,14 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Build outputs ###
+target/
+frontend/.next/
+frontend/node_modules/
+
+### Local runtime data ###
+uploads/
+dataset-uploads/
+.DS_Store
+frontend/.env.local
